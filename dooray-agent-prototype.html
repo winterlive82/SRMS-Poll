@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SRMS 요건정리 에이전트 — Dooray 프로토타입</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --dooray-bg: #f5f6f8;
+    --dooray-sidebar: #2c2d30;
+    --dooray-sidebar-active: #1164a3;
+    --dooray-white: #fff;
+    --dooray-border: #e8e8e8;
+    --dooray-text: #1d1c1d;
+    --dooray-text-sub: #616061;
+    --dooray-blue: #1264a3;
+    --dooray-blue-light: #e8f5fe;
+    --dooray-green: #007a5a;
+    --dooray-green-light: #e8f8f0;
+    --dooray-orange: #e97c00;
+    --dooray-orange-light: #fef4e6;
+    --radius: 8px;
+  }
+  html, body { height: 100%; font-family: -apple-system, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; background: var(--dooray-bg); color: var(--dooray-text); font-size: 14px; }
+
+  /* 전체 레이아웃 */
+  .app { display: flex; height: 100vh; }
+
+  /* 사이드바 */
+  .sidebar { width: 240px; background: var(--dooray-sidebar); color: #ccc; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .sidebar-header h2 { font-size: 15px; color: #fff; font-weight: 700; }
+  .sidebar-header span { font-size: 11px; color: #999; }
+  .sidebar-section { padding: 12px 0; }
+  .sidebar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #999; padding: 0 16px; margin-bottom: 4px; letter-spacing: .5px; }
+  .sidebar-item { padding: 5px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #bbb; }
+  .sidebar-item:hover { background: rgba(255,255,255,.06); }
+  .sidebar-item.active { background: var(--dooray-sidebar-active); color: #fff; border-radius: 0; }
+  .sidebar-item .icon { width: 20px; text-align: center; font-size: 14px; }
+  .sidebar-item .badge { margin-left: auto; background: #cd2553; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 700; }
+  .sidebar-divider { height: 1px; background: rgba(255,255,255,.1); margin: 4px 16px; }
+
+  /* 메인 영역 */
+  .main { flex: 1; display: flex; flex-direction: column; background: var(--dooray-white); min-width: 0; }
+
+  /* 채팅 헤더 */
+  .chat-header { padding: 10px 20px; border-bottom: 1px solid var(--dooray-border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: #fff; }
+  .chat-header .agent-avatar { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; font-weight: 700; }
+  .chat-header .info h3 { font-size: 14px; font-weight: 700; }
+  .chat-header .info span { font-size: 11px; color: var(--dooray-text-sub); }
+  .chat-header .actions { margin-left: auto; display: flex; gap: 6px; }
+  .header-btn { font-size: 12px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--dooray-border); background: #fff; cursor: pointer; color: var(--dooray-text-sub); font-family: inherit; }
+  .header-btn:hover { background: #f5f5f5; }
+  .header-btn.primary { background: var(--dooray-blue); color: #fff; border-color: var(--dooray-blue); }
+  .header-btn.primary:hover { background: #0d5a96; }
+
+  /* 모드 선택 배너 */
+  .mode-banner { padding: 8px 20px; background: #fafafa; border-bottom: 1px solid var(--dooray-border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .mode-tab { font-size: 12px; padding: 5px 14px; border-radius: 20px; border: 1px solid var(--dooray-border); background: #fff; cursor: pointer; font-family: inherit; color: var(--dooray-text-sub); transition: all .15s; }
+  .mode-tab.active { background: var(--dooray-blue); color: #fff; border-color: var(--dooray-blue); }
+  .mode-label { font-size: 11px; color: var(--dooray-text-sub); margin-left: auto; }
+
+  /* 채팅 영역 */
+  .chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 2px; }
+
+  /* 메시지 */
+  .msg-group { display: flex; gap: 10px; padding: 4px 0; }
+  .msg-group.user { flex-direction: row-reverse; }
+  .msg-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+  .msg-avatar.ai { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+  .msg-avatar.user { background: #e8f5fe; color: var(--dooray-blue); }
+  .msg-content { max-width: 70%; }
+  .msg-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+  .msg-group.user .msg-name { text-align: right; }
+  .msg-time { font-size: 10px; color: #999; margin-left: 6px; font-weight: 400; }
+  .msg-bubble { padding: 10px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+  .msg-group:not(.user) .msg-bubble { background: #f8f8f8; border: 1px solid #eee; }
+  .msg-group.user .msg-bubble { background: var(--dooray-blue-light); border: 1px solid #d0e8f8; }
+  .msg-bubble img.attached { max-width: 200px; border-radius: 8px; border: 1px solid #eee; display: block; margin-bottom: 6px; }
+
+  /* 액션 카드 */
+  .action-card { margin-top: 10px; border: 1px solid var(--dooray-border); border-radius: var(--radius); overflow: hidden; }
+  .action-card-header { padding: 8px 12px; background: #fafafa; border-bottom: 1px solid var(--dooray-border); font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .action-card-body { padding: 10px 12px; font-size: 12.5px; line-height: 1.7; max-height: 200px; overflow-y: auto; white-space: pre-wrap; background: #fff; }
+  .action-btns { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .action-btn { font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 1px solid; cursor: pointer; font-family: inherit; font-weight: 600; transition: all .15s; }
+  .action-btn:hover { opacity: .85; }
+  .btn-proto { background: var(--dooray-blue-light); color: var(--dooray-blue); border-color: #b8d8f0; }
+  .btn-req { background: var(--dooray-green-light); color: var(--dooray-green); border-color: #b8e0d0; }
+  .btn-task { background: var(--dooray-orange-light); color: var(--dooray-orange); border-color: #f0d8b0; }
+
+  /* 입력 영역 */
+  .input-area { border-top: 1px solid var(--dooray-border); padding: 12px 20px; background: #fff; flex-shrink: 0; }
+  .input-row { display: flex; gap: 8px; align-items: flex-end; }
+  .input-row textarea { flex: 1; border: 1px solid var(--dooray-border); border-radius: 8px; padding: 9px 13px; font-size: 13.5px; font-family: inherit; resize: none; min-height: 38px; max-height: 120px; outline: none; line-height: 1.5; }
+  .input-row textarea:focus { border-color: var(--dooray-blue); }
+  .send-btn { width: 38px; height: 38px; border: none; border-radius: 8px; background: var(--dooray-blue); color: #fff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .send-btn:hover { background: #0d5a96; }
+  .send-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .input-hint { font-size: 11px; color: #999; margin-top: 5px; display: flex; justify-content: space-between; }
+
+  /* 명령어 자동완성 */
+  .cmd-dropdown { display: none; position: absolute; bottom: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--dooray-border); border-radius: 8px; box-shadow: 0 -4px 16px rgba(0,0,0,.1); margin-bottom: 4px; z-index: 100; }
+  .cmd-dropdown.show { display: block; }
+  .cmd-item { padding: 8px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+  .cmd-item:hover, .cmd-item.selected { background: var(--dooray-blue-light); }
+  .cmd-item .cmd-name { font-weight: 700; color: var(--dooray-blue); min-width: 60px; }
+  .cmd-item .cmd-desc { color: var(--dooray-text-sub); }
+
+  /* 아키텍처 다이어그램 */
+  .arch-panel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; }
+  .arch-panel.show { display: flex; }
+  .arch-card { background: #fff; border-radius: 12px; width: 90vw; max-width: 700px; max-height: 80vh; overflow-y: auto; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  .arch-card h2 { font-size: 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .arch-card pre { background: #f8f8f8; border: 1px solid #eee; border-radius: 8px; padding: 16px; font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; font-family: 'Consolas', 'Monaco', monospace; }
+  .arch-card .arch-close { float: right; font-size: 20px; cursor: pointer; color: #999; background: none; border: none; }
+  .arch-card .arch-close:hover { color: #333; }
+  .arch-legend { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+  .arch-legend span { font-size: 11px; color: #666; display: flex; align-items: center; gap: 4px; }
+  .arch-legend .dot-legend { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* 타이핑 인디케이터 */
+  @keyframes blink { 0%,100%{opacity:.2} 50%{opacity:1} }
+  .typing { display: inline-flex; gap: 3px; align-items: center; padding: 10px 14px; }
+  .typing .dot { width: 6px; height: 6px; border-radius: 50%; background: #999; animation: blink 1.2s infinite; }
+  .typing .dot:nth-child(2){animation-delay:.2s}
+  .typing .dot:nth-child(3){animation-delay:.4s}
+
+  /* 프로토타입 뷰어 모달 */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 12px; width: 90vw; max-width: 900px; height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  .modal-header { padding: 12px 20px; border-bottom: 1px solid var(--dooray-border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .modal-header h3 { font-size: 14px; font-weight: 700; }
+  .modal-header .modal-actions { margin-left: auto; display: flex; gap: 6px; }
+  .modal iframe { flex: 1; border: none; }
+  .modal-close { font-size: 20px; cursor: pointer; color: #999; background: none; border: none; padding: 4px 8px; line-height: 1; }
+  .modal-close:hover { color: #333; }
+
+  /* 업무 등록 토스트 */
+  .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1d1c1d; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 13px; display: none; z-index: 1001; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+  .toast.show { display: flex; align-items: center; gap: 8px; }
+
+  /* 진행 표시 */
+  .step-indicator { display: flex; gap: 4px; align-items: center; margin-bottom: 8px; }
+  .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; }
+  .step-dot.done { background: var(--dooray-green); }
+  .step-dot.current { background: var(--dooray-blue); }
+  .step-label { font-size: 11px; color: var(--dooray-text-sub); margin-left: 6px; }
+
+  /* 반응형 */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .msg-content { max-width: 85%; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 사이드바 -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>Dooray!</h2>
+      <span>우리금융그룹</span>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">메신저</div>
+      <div class="sidebar-item"><span class="icon">💬</span> 전체 대화</div>
+      <div class="sidebar-item"><span class="icon">👥</span> IT서비스팀</div>
+      <div class="sidebar-item"><span class="icon">👥</span> SRMS 운영</div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label">AI 에이전트</div>
+      <div class="sidebar-item active"><span class="icon">🤖</span> 요건정리 에이전트 <span class="badge">1</span></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">업무</div>
+      <div class="sidebar-item"><span class="icon">📋</span> 내 업무</div>
+      <div class="sidebar-item"><span class="icon">📁</span> SRMS 요건정리</div>
+    </div>
+  </div>
+
+  <!-- 메인 채팅 -->
+  <div class="main">
+
+    <!-- 헤더 -->
+    <div class="chat-header">
+      <div class="agent-avatar">AI</div>
+      <div class="info">
+        <h3>요건정리 에이전트</h3>
+        <span>SRMS 신규/수정 개발 요건 정리 도우미</span>
+      </div>
+      <div class="actions">
+        <button class="header-btn" onclick="showArch()">🏗 아키텍처</button>
+        <button class="header-btn" onclick="resetDemo()">대화 초기화</button>
+        <button class="header-btn primary" onclick="registerTask()">📋 업무 등록</button>
+      </div>
+    </div>
+
+    <!-- 모드 선택 -->
+    <div class="mode-banner">
+      <button class="mode-tab active" id="tab-new" onclick="switchMode('new')">신규 개발</button>
+      <button class="mode-tab" id="tab-mod" onclick="switchMode('mod')">수정 개발</button>
+      <span class="mode-label" id="mode-status">💡 대화로 요건을 정리하면 AI가 요건서 + 프로토타입을 생성합니다</span>
+    </div>
+
+    <!-- 채팅 영역 -->
+    <div class="chat-area" id="chat-area"></div>
+
+    <!-- 입력 영역 -->
+    <div class="input-area" style="position:relative;">
+      <div class="cmd-dropdown" id="cmd-dropdown"></div>
+      <div class="input-row">
+        <textarea id="msg-input" placeholder="개발하고 싶은 내용을 자유롭게 말씀해 주세요..." onkeydown="handleInputKey(event)" oninput="handleInputChange(event)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMsg()">↑</button>
+      </div>
+      <div class="input-hint">
+        <span>Enter: 전송 · Shift+Enter: 줄바꿈 · <b>/</b> 명령어</span>
+        <span id="step-hint"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 프로토타입 뷰어 모달 -->
+<div class="modal-overlay" id="proto-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📱 HTML 프로토타입 미리보기</h3>
+      <div class="modal-actions">
+        <button class="header-btn" onclick="downloadProto()">다운로드 ↓</button>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+    </div>
+    <iframe id="proto-frame" sandbox="allow-scripts"></iframe>
+  </div>
+</div>
+
+<!-- 아키텍처 다이어그램 패널 -->
+<div class="arch-panel" id="arch-panel" onclick="if(event.target===this)closeArch()">
+  <div class="arch-card">
+    <button class="arch-close" onclick="closeArch()">&times;</button>
+    <h2>🏗 Dooray SDK 기반 아키텍처</h2>
+    <pre>
+┌─────────────────────────────────────────────────────────────┐
+│  관리담당자 (Dooray 메신저)                                    │
+│  "대출 심사 대시보드를 만들고 싶어요"                              │
+└──────────────┬──────────────────────────────────────────────┘
+               │ WebSocket (dooray-sdk)
+               ▼
+┌──────────────────────────────────────┐
+│  SRMS 요건정리 에이전트 (Python)        │
+│  ┌────────────────────────────────┐  │
+│  │ main.py                       │  │
+│  │  @agent.messenger             │  │
+│  │  handle_message(req) ──────┐  │  │
+│  │                            ▼  │  │
+│  │  conversation.py  ←→  prompts.py │
+│  │  (세션 관리)        (시스템 프롬프트) │
+│  │       │                       │  │
+│  │       ▼                       │  │
+│  │  call_ai() ── parser.py ──┐   │  │
+│  │  (AI 호출)    (마커 파싱)   │   │  │
+│  │       │                   │   │  │
+│  │       ▼                   ▼   │  │
+│  │  req.reply()    register_task()│  │
+│  │  (메신저 응답)   (업무 등록)    │  │
+│  └────────────────────────────────┘  │
+│  dooray-sdk 0.0.1a2                  │
+└──────────┬───────────────┬───────────┘
+           │               │
+           ▼               ▼
+┌──────────────┐  ┌──────────────────┐
+│ Dooray 메신저  │  │ Dooray 업무       │
+│ (AI 응답)     │  │ (요건서 + HTML)    │
+└──────────────┘  └──────────────────┘
+           │
+           ▼
+┌──────────────────┐
+│ 프로토타입 뷰어    │
+│ (HTML → iframe)   │
+│ sandbox="allow-   │
+│ scripts"          │
+└──────────────────┘</pre>
+    <div class="arch-legend">
+      <span><span class="dot-legend" style="background:#667eea"></span> Python Agent (dooray-sdk)</span>
+      <span><span class="dot-legend" style="background:#007a5a"></span> Dooray SaaS (메신저 + 업무)</span>
+      <span><span class="dot-legend" style="background:#e97c00"></span> 프로토타입 뷰어 (정적 HTML)</span>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════
+   시뮬레이션 시나리오 데이터
+══════════════════════════════════════════ */
+const SCENARIOS = {
+  new: [
+    // Step 0: 인사
+    { type: 'ai', text: '안녕하세요! 신규 개발 요건정리 에이전트입니다. 😊\n\n어떤 기능을 개발하고 싶으신지 자유롭게 말씀해 주세요.\n질문을 드려가며 개발자가 바로 이해할 수 있는 요건서와 클릭 가능한 HTML 프로토타입을 함께 만들어 드립니다.', step: 0 },
+    // Step 1: 사용자 입력 후 AI 질문 (1단계 요건 파악)
+    { type: 'ai', text: '대출 심사 현황 대시보드군요! 좋은 아이디어네요. 몇 가지 여쭤볼게요.\n\n1️⃣ 이 대시보드는 주로 누가 사용하나요?\n   • 지점 직원 / 심사역 / 본부 관리자 중에서요.\n\n2️⃣ 대시보드에서 가장 먼저 확인하고 싶은 정보는 무엇인가요?\n   예) 오늘 접수 건수, 심사 진행률, 지연 건 등', step: 1, trigger: '대출' },
+    // Step 2: 추가 질문
+    { type: 'ai', text: '감사합니다! 잘 이해했어요. 추가로 확인할게요.\n\n3️⃣ 대시보드에 표시할 데이터 기간은 어떻게 할까요?\n   • 오늘 / 이번 주 / 이번 달 / 사용자 선택\n\n4️⃣ 심사 상태 구분은 어떤 것들이 있나요?\n   예) 접수 → 심사중 → 승인 → 거절 → 보완요청\n\n5️⃣ 오류나 예외 상황에서는 어떻게 하면 좋을까요?\n   예) 데이터 로딩 실패 시 안내 메시지, 권한 없는 경우 처리 등', step: 2 },
+    // Step 3: 요건 확인 (2단계)
+    { type: 'ai', text: '좋습니다! 지금까지 정리한 요건을 확인해 드릴게요.\n\n━━━━━━━━━━━━━━━━━━━━━━\n📋 요건 정리 (확인 요청)\n━━━━━━━━━━━━━━━━━━━━━━\n\n▸ 업무 목적: 대출 심사 현황을 실시간으로 모니터링하여 지연 건을 빠르게 파악\n▸ 사용 대상: 본부 심사팀 관리자 (10명 이내)\n▸ 주요 화면:\n  - 상단 요약 카드 (오늘 접수/심사중/승인/거절 건수)\n  - 심사 상태별 파이프라인 차트\n  - 지연 건 알림 목록 (3일 이상 미처리)\n  - 심사역별 처리 현황 테이블\n▸ 데이터 기간: 기본 이번 달, 사용자 선택 가능\n▸ 상태: 접수 → 심사중 → 승인/거절/보완요청\n▸ 예외 처리: 데이터 로딩 실패 시 "잠시 후 다시 시도" 안내\n\n이 내용이 맞나요? 수정할 부분이 있으면 말씀해 주세요! ✅', step: 3 },
+    // Step 4: 산출물 생성 (3단계)
+    { type: 'ai', text: '완벽합니다! 요건서와 프로토타입을 생성할게요. 잠시만 기다려 주세요... 🔨', step: 4, trigger: '맞' },
+    // Step 5: 산출물 완성
+    { type: 'ai-result', step: 5 }
+  ],
+  mod: [
+    { type: 'ai', text: '수정 개발 모드입니다. 📎\n\n기존 화면 캡처를 첨부하시고, 어떻게 바꾸고 싶으신지 말씀해 주세요.\n\n예시:\n• "승인 버튼을 추가하고 싶어요"\n• "검색 필터에 날짜 조건을 추가해주세요"\n• "목록에 엑셀 다운로드 기능이 필요해요"', step: 0 }
+  ]
+};
+
+// 생성될 프로토타입 HTML
+const PROTO_HTML = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>대출 심사 현황 대시보드</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Malgun Gothic',sans-serif;background:#f0f2f5;color:#333}
+  .header{background:linear-gradient(135deg,#1B4BB1,#2d6fd3);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+  .header h1{font-size:18px;font-weight:700}
+  .header select{padding:6px 12px;border-radius:6px;border:none;font-size:13px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px 24px}
+  .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .card .label{font-size:12px;color:#888;margin-bottom:6px}
+  .card .value{font-size:28px;font-weight:800}
+  .card .change{font-size:11px;margin-top:4px;padding:2px 8px;border-radius:10px;display:inline-block}
+  .card.blue .value{color:#1B4BB1} .card.blue .change{background:#e8f0fe;color:#1B4BB1}
+  .card.orange .value{color:#e97c00} .card.orange .change{background:#fef4e6;color:#e97c00}
+  .card.green .value{color:#007a5a} .card.green .change{background:#e8f8f0;color:#007a5a}
+  .card.red .value{color:#d32f2f} .card.red .change{background:#fde8e8;color:#d32f2f}
+  .content{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 24px 20px}
+  .panel{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .panel h3{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+  .pipeline{display:flex;gap:8px;justify-content:center;align-items:flex-end;height:160px;padding:10px 0}
+  .pipe-bar{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}
+  .pipe-bar .bar{width:100%;border-radius:6px 6px 0 0;transition:height .3s}
+  .pipe-bar .pipe-label{font-size:11px;color:#888}
+  .pipe-bar .pipe-value{font-size:14px;font-weight:700}
+  .alert-list{list-style:none}
+  .alert-list li{padding:10px 12px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;font-size:13px}
+  .alert-list li:last-child{border-bottom:none}
+  .alert-dot{width:8px;height:8px;border-radius:50%;background:#d32f2f;flex-shrink:0}
+  .alert-days{margin-left:auto;font-size:11px;color:#d32f2f;font-weight:700;white-space:nowrap}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:8px 10px;background:#f8f8f8;font-weight:600;border-bottom:2px solid #e0e0e0}
+  td{padding:8px 10px;border-bottom:1px solid #f0f0f0}
+  .progress-bar{background:#e0e0e0;border-radius:10px;height:8px;width:100px;display:inline-block;vertical-align:middle}
+  .progress-fill{background:linear-gradient(90deg,#1B4BB1,#2d6fd3);height:100%;border-radius:10px}
+  .status-badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+  .status-active{background:#e8f0fe;color:#1B4BB1}
+  .full-width{grid-column:1/-1}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📊 대출 심사 현황 대시보드</h1>
+  <div>
+    <select onchange="this.blur()">
+      <option>2026년 4월</option>
+      <option>2026년 3월</option>
+      <option>2026년 2월</option>
+    </select>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card blue">
+    <div class="label">오늘 접수</div>
+    <div class="value">24</div>
+    <span class="change">▲ 3 전일 대비</span>
+  </div>
+  <div class="card orange">
+    <div class="label">심사 진행중</div>
+    <div class="value">18</div>
+    <span class="change">▼ 2 전일 대비</span>
+  </div>
+  <div class="card green">
+    <div class="label">오늘 승인</div>
+    <div class="value">12</div>
+    <span class="change">▲ 5 전일 대비</span>
+  </div>
+  <div class="card red">
+    <div class="label">지연 건 (3일+)</div>
+    <div class="value">4</div>
+    <span class="change">▼ 1 전일 대비</span>
+  </div>
+</div>
+
+<div class="content">
+  <div class="panel">
+    <h3>📈 심사 상태별 파이프라인</h3>
+    <div class="pipeline">
+      <div class="pipe-bar"><div class="bar" style="height:120px;background:linear-gradient(180deg,#1B4BB1,#4a8ae0)"></div><div class="pipe-value">24</div><div class="pipe-label">접수</div></div>
+      <div class="pipe-bar"><div class="bar" style="height:90px;background:linear-gradient(180deg,#e97c00,#f5a623)"></div><div class="pipe-value">18</div><div class="pipe-label">심사중</div></div>
+      <div class="pipe-bar"><div class="bar" style="height:60px;background:linear-gradient(180deg,#007a5a,#34c38f)"></div><div class="pipe-value">12</div><div class="pipe-label">승인</div></div>
+      <div class="pipe-bar"><div class="bar" style="height:30px;background:linear-gradient(180deg,#d32f2f,#f06292)"></div><div class="pipe-value">6</div><div class="pipe-label">거절</div></div>
+      <div class="pipe-bar"><div class="bar" style="height:40px;background:linear-gradient(180deg,#7b1fa2,#ba68c8)"></div><div class="pipe-value">8</div><div class="pipe-label">보완요청</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>🚨 지연 건 알림 (3일 이상 미처리)</h3>
+    <ul class="alert-list">
+      <li><span class="alert-dot"></span>김OO 고객 주택담보대출 심사<span class="alert-days">5일 지연</span></li>
+      <li><span class="alert-dot"></span>이OO 고객 신용대출 서류 보완<span class="alert-days">4일 지연</span></li>
+      <li><span class="alert-dot"></span>박OO 고객 전세대출 심사<span class="alert-days">3일 지연</span></li>
+      <li><span class="alert-dot"></span>최OO 고객 사업자대출 심사<span class="alert-days">3일 지연</span></li>
+    </ul>
+  </div>
+
+  <div class="panel full-width">
+    <h3>👤 심사역별 처리 현황</h3>
+    <table>
+      <tr><th>심사역</th><th>담당 건수</th><th>처리 완료</th><th>진행률</th><th>상태</th></tr>
+      <tr><td>홍길동</td><td>8</td><td>6</td><td><span class="progress-bar"><span class="progress-fill" style="width:75%"></span></span> 75%</td><td><span class="status-badge status-active">정상</span></td></tr>
+      <tr><td>김영희</td><td>10</td><td>7</td><td><span class="progress-bar"><span class="progress-fill" style="width:70%"></span></span> 70%</td><td><span class="status-badge status-active">정상</span></td></tr>
+      <tr><td>이철수</td><td>6</td><td>2</td><td><span class="progress-bar"><span class="progress-fill" style="width:33%"></span></span> 33%</td><td><span class="status-badge" style="background:#fde8e8;color:#d32f2f">지연</span></td></tr>
+      <tr><td>박미나</td><td>7</td><td>5</td><td><span class="progress-bar"><span class="progress-fill" style="width:71%"></span></span> 71%</td><td><span class="status-badge status-active">정상</span></td></tr>
+    </table>
+  </div>
+</div>
+</body>
+</html>`;
+
+const REQ_TEXT = `[개발 요건서]
+■ 요청 부서 : 여신심사본부
+■ 요청 일자 : 2026. 4. 6.
+■ 시스템 명 : 대출 심사 현황 대시보드
+■ 개발 유형 : 신규 개발
+
+1. 개발 목적
+   대출 심사 처리 현황을 실시간 모니터링하여 지연 건을 빠르게 식별하고,
+   심사팀 관리자가 인력 배분과 업무 우선순위를 효율적으로 결정할 수 있도록 지원.
+
+2. 주요 기능 목록
+   ① 오늘 접수/심사중/승인/거절 건수 요약 카드
+   ② 심사 상태별 파이프라인 차트 (접수→심사중→승인/거절/보완요청)
+   ③ 지연 건 알림 목록 (3일 이상 미처리 건 하이라이트)
+   ④ 심사역별 처리 현황 테이블 (담당 건수, 완료 건수, 진행률)
+   ⑤ 조회 기간 선택 (월 단위, 기본값: 이번 달)
+
+3. 화면 목록 및 설명
+   - 메인 대시보드 (1개 화면으로 구성)
+     · 상단: 요약 카드 4개 (접수/심사중/승인/거절)
+     · 중단 좌: 파이프라인 바 차트
+     · 중단 우: 지연 건 알림 목록
+     · 하단: 심사역별 처리 현황 테이블
+
+4. 데이터 항목 (입력/조회/저장)
+   - 조회: 심사 접수 일시, 심사 상태, 담당 심사역, 고객명(마스킹), 대출 유형
+   - 입력: 조회 기간 선택 (월)
+   - 저장: 없음 (조회 전용)
+
+5. 비기능 요건 (권한·보안·성능)
+   - 권한: 본부 심사팀 관리자만 접근 (역할 기반 접근 제어)
+   - 보안: 고객 성명 마스킹 처리 (김O홍), SSL 필수
+   - 성능: 페이지 로딩 3초 이내, 데이터 5분 간격 자동 갱신
+
+6. 예외 처리
+   - 데이터 로딩 실패 시: "데이터를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요." 안내
+   - 권한 없는 사용자 접근 시: "접근 권한이 없습니다. 관리자에게 문의하세요." 안내
+   - 조회 데이터가 없는 경우: "해당 기간 데이터가 없습니다." 안내
+
+7. 참고사항 / 제약사항
+   - 기존 여신심사 시스템(CLMS)에서 데이터를 조회하므로 연계 인터페이스 설계 필요
+   - 초기 버전은 조회 전용, 향후 심사역 배정 기능 추가 검토`;
+
+/* ══════════════════════════════════════════
+   상태 관리
+══════════════════════════════════════════ */
+let mode = 'new';
+let step = 0;
+let isTyping = false;
+let cmdSelected = -1;
+const userInputs = [
+  '대출 심사 현황을 한눈에 볼 수 있는 대시보드를 만들고 싶어요',
+  '본부 심사팀 관리자가 사용하고요, 오늘 접수된 건수랑 심사 진행률, 그리고 3일 넘게 지연된 건을 바로 확인하고 싶습니다',
+  '네 맞습니다! 바로 진행해 주세요'
+];
+
+// Dooray SDK 기반 명령어 목록
+const COMMANDS = [
+  { cmd: '/신규', desc: '신규 개발 모드로 전환' },
+  { cmd: '/수정', desc: '수정 개발 모드로 전환' },
+  { cmd: '/초기화', desc: '대화 초기화' },
+  { cmd: '/저장', desc: '요건서 + 프로토타입을 Dooray 업무에 등록' },
+  { cmd: '/도움말', desc: '명령어 목록 표시' },
+];
+
+function now() {
+  const d = new Date();
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* ══════════════════════════════════════════
+   메시지 렌더링
+══════════════════════════════════════════ */
+function addMsg(role, html, options = {}) {
+  const area = document.getElementById('chat-area');
+  const group = document.createElement('div');
+  group.className = `msg-group ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = `msg-avatar ${role}`;
+  avatar.textContent = role === 'ai' ? 'AI' : '나';
+
+  const content = document.createElement('div');
+  content.className = 'msg-content';
+
+  const name = document.createElement('div');
+  name.className = 'msg-name';
+  name.innerHTML = role === 'ai'
+    ? `요건정리 에이전트 <span class="msg-time">${now()}</span>`
+    : `김관리 <span class="msg-time">${now()}</span>`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.innerHTML = html;
+
+  content.appendChild(name);
+  if (options.stepIndicator) content.appendChild(createStepIndicator(options.stepIndicator));
+  content.appendChild(bubble);
+
+  group.appendChild(avatar);
+  group.appendChild(content);
+  area.appendChild(group);
+  area.scrollTop = area.scrollHeight;
+  return bubble;
+}
+
+function createStepIndicator(current) {
+  const labels = ['요건 파악', '요건 확인', '산출물 생성'];
+  const wrap = document.createElement('div');
+  wrap.className = 'step-indicator';
+  for (let i = 0; i < 3; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'step-dot' + (i < current ? ' done' : i === current ? ' current' : '');
+    wrap.appendChild(dot);
+  }
+  const label = document.createElement('span');
+  label.className = 'step-label';
+  label.textContent = labels[Math.min(current, 2)];
+  wrap.appendChild(label);
+  return wrap;
+}
+
+function addTyping() {
+  const area = document.getElementById('chat-area');
+  const group = document.createElement('div');
+  group.className = 'msg-group';
+  group.id = 'typing-indicator';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar ai';
+  avatar.textContent = 'AI';
+
+  const content = document.createElement('div');
+  content.className = 'msg-content';
+  content.innerHTML = `<div class="msg-name">요건정리 에이전트</div><div class="msg-bubble"><div class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>`;
+
+  group.appendChild(avatar);
+  group.appendChild(content);
+  area.appendChild(group);
+  area.scrollTop = area.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+/* ══════════════════════════════════════════
+   결과 카드 (산출물)
+══════════════════════════════════════════ */
+function addResultMsg() {
+  const html = `요건서와 프로토타입이 완성되었습니다! 🎉
+
+아래에서 확인해 주세요.
+
+<div class="action-card" style="margin-top:12px">
+  <div class="action-card-header">📱 HTML 프로토타입</div>
+  <div class="action-card-body" style="max-height:80px;color:#888;font-size:12px">대출 심사 현황 대시보드 — 요약 카드, 파이프라인 차트, 지연 알림, 심사역 현황 포함</div>
+</div>
+
+<div class="action-card" style="margin-top:8px">
+  <div class="action-card-header">📋 개발 요건서</div>
+  <div class="action-card-body" style="max-height:80px;color:#888;font-size:12px">${REQ_TEXT.substring(0, 150)}...</div>
+</div>
+
+<div class="action-btns">
+  <button class="action-btn btn-proto" onclick="showProto()">▶ 프로토타입 보기</button>
+  <button class="action-btn btn-req" onclick="showReq()">📋 요건서 전체 보기</button>
+  <button class="action-btn btn-task" onclick="registerTask()">📁 Dooray 업무 등록</button>
+</div>`;
+
+  addMsg('ai', html, { stepIndicator: 2 });
+}
+
+/* ══════════════════════════════════════════
+   시나리오 진행
+══════════════════════════════════════════ */
+/* ══════════════════════════════════════════
+   명령어 자동완성
+══════════════════════════════════════════ */
+function handleInputKey(event) {
+  const dropdown = document.getElementById('cmd-dropdown');
+  if (dropdown.classList.contains('show')) {
+    const items = dropdown.querySelectorAll('.cmd-item');
+    if (event.key === 'ArrowDown') { event.preventDefault(); cmdSelected = Math.min(cmdSelected + 1, items.length - 1); updateCmdSelection(items); return; }
+    if (event.key === 'ArrowUp') { event.preventDefault(); cmdSelected = Math.max(cmdSelected - 1, 0); updateCmdSelection(items); return; }
+    if ((event.key === 'Enter' || event.key === 'Tab') && cmdSelected >= 0) {
+      event.preventDefault();
+      const cmd = items[cmdSelected].dataset.cmd;
+      document.getElementById('msg-input').value = cmd;
+      hideCmdDropdown();
+      return;
+    }
+    if (event.key === 'Escape') { hideCmdDropdown(); return; }
+  }
+  if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMsg(); }
+}
+
+function handleInputChange(event) {
+  const val = event.target.value;
+  if (val.startsWith('/') && val.length >= 1) {
+    const query = val.toLowerCase();
+    const matches = COMMANDS.filter(c => c.cmd.startsWith(query));
+    if (matches.length > 0 && val !== matches[0]?.cmd) {
+      showCmdDropdown(matches);
+    } else {
+      hideCmdDropdown();
+    }
+  } else {
+    hideCmdDropdown();
+  }
+}
+
+function showCmdDropdown(matches) {
+  const dropdown = document.getElementById('cmd-dropdown');
+  cmdSelected = 0;
+  dropdown.innerHTML = matches.map((m, i) =>
+    `<div class="cmd-item${i === 0 ? ' selected' : ''}" data-cmd="${m.cmd}" onclick="selectCmd('${m.cmd}')">
+      <span class="cmd-name">${m.cmd}</span>
+      <span class="cmd-desc">${m.desc}</span>
+    </div>`
+  ).join('');
+  dropdown.classList.add('show');
+}
+
+function hideCmdDropdown() {
+  document.getElementById('cmd-dropdown').classList.remove('show');
+  cmdSelected = -1;
+}
+
+function updateCmdSelection(items) {
+  items.forEach((el, i) => el.classList.toggle('selected', i === cmdSelected));
+}
+
+function selectCmd(cmd) {
+  document.getElementById('msg-input').value = cmd;
+  hideCmdDropdown();
+  document.getElementById('msg-input').focus();
+}
+
+/* ══════════════════════════════════════════
+   명령어 처리
+══════════════════════════════════════════ */
+function handleCommand(text) {
+  const cmd = text.trim().toLowerCase();
+
+  if (cmd === '/도움말' || cmd === '/help') {
+    addMsg('user', escapeHtml(text));
+    setTimeout(() => {
+      addMsg('ai', `📌 <b>요건정리 에이전트 명령어</b><br/><br/>` +
+        `<b>/신규</b> — 신규 개발 모드로 전환<br/>` +
+        `<b>/수정</b> — 수정 개발 모드로 전환<br/>` +
+        `<b>/초기화</b> — 대화 초기화<br/>` +
+        `<b>/저장</b> — 요건서 + 프로토타입을 Dooray 업무에 등록<br/>` +
+        `<b>/도움말</b> — 이 도움말 표시<br/><br/>` +
+        `그냥 자연어로 말씀하시면 AI가 질문하며 요건을 정리합니다.`);
+    }, 500);
+    return true;
+  }
+
+  if (cmd === '/초기화' || cmd === '/reset') {
+    addMsg('user', escapeHtml(text));
+    setTimeout(() => {
+      resetDemo();
+      showToast('🔄 대화가 초기화되었습니다');
+    }, 300);
+    return true;
+  }
+
+  if (cmd === '/신규' || cmd === '/new') {
+    addMsg('user', escapeHtml(text));
+    switchMode('new');
+    showToast('🔄 신규 개발 모드로 전환');
+    return true;
+  }
+
+  if (cmd === '/수정' || cmd === '/mod') {
+    addMsg('user', escapeHtml(text));
+    switchMode('mod');
+    showToast('🔄 수정 개발 모드로 전환');
+    return true;
+  }
+
+  if (cmd === '/저장' || cmd === '/save' || cmd === '/등록') {
+    addMsg('user', escapeHtml(text));
+    registerTask();
+    return true;
+  }
+
+  return false;
+}
+
+/* ══════════════════════════════════════════
+   메시지 전송 (시나리오 시뮬레이션)
+══════════════════════════════════════════ */
+function sendMsg() {
+  if (isTyping) return;
+  const input = document.getElementById('msg-input');
+  let text = input.value.trim();
+
+  // 시나리오 자동 입력
+  if (!text && step < userInputs.length) {
+    text = userInputs[step];
+  }
+  if (!text) return;
+
+  input.value = '';
+  hideCmdDropdown();
+
+  // 명령어 처리
+  if (text.startsWith('/')) {
+    if (handleCommand(text)) return;
+  }
+
+  addMsg('user', escapeHtml(text));
+
+  step++;
+  isTyping = true;
+  document.getElementById('send-btn').disabled = true;
+  addTyping();
+
+  const delay = 1200 + Math.random() * 800;
+  setTimeout(() => {
+    removeTyping();
+    isTyping = false;
+    document.getElementById('send-btn').disabled = false;
+
+    if (step === 1) {
+      addMsg('ai', escapeHtml(SCENARIOS.new[1].text), { stepIndicator: 0 });
+      document.getElementById('msg-input').placeholder = '사용 대상과 확인하고 싶은 정보를 알려주세요...';
+      document.getElementById('step-hint').textContent = '1단계: 요건 파악 중 (1/3)';
+    } else if (step === 2) {
+      addMsg('ai', escapeHtml(SCENARIOS.new[2].text), { stepIndicator: 0 });
+      document.getElementById('msg-input').placeholder = '데이터 기간, 상태 구분, 예외 처리를 알려주세요...';
+      document.getElementById('step-hint').textContent = '1단계: 요건 파악 중 (2/3)';
+    } else if (step === 3) {
+      addMsg('ai', escapeHtml(SCENARIOS.new[3].text), { stepIndicator: 1 });
+      document.getElementById('msg-input').placeholder = '맞으면 "네" 또는 수정할 내용을 입력하세요...';
+      document.getElementById('step-hint').textContent = '2단계: 요건 확인';
+    } else if (step === 4) {
+      addMsg('ai', escapeHtml(SCENARIOS.new[4].text));
+      document.getElementById('step-hint').textContent = '3단계: 산출물 생성 중...';
+      addTyping();
+      setTimeout(() => {
+        removeTyping();
+        addResultMsg();
+        document.getElementById('step-hint').textContent = '✅ 완료! 프로토타입과 요건서를 확인하세요';
+        document.getElementById('msg-input').placeholder = '/저장 으로 Dooray 업무에 등록하세요...';
+      }, 2500);
+    } else {
+      addMsg('ai', '네, 해당 부분을 반영하겠습니다. 수정된 프로토타입과 요건서를 생성할게요! 🔄');
+    }
+
+    document.getElementById('msg-input').focus();
+  }, delay);
+}
+
+/* ══════════════════════════════════════════
+   프로토타입 / 요건서 / 업무 등록
+══════════════════════════════════════════ */
+function showProto() {
+  document.getElementById('proto-modal').classList.add('show');
+  document.getElementById('proto-frame').srcdoc = PROTO_HTML;
+}
+
+function closeModal() {
+  document.getElementById('proto-modal').classList.remove('show');
+}
+
+function downloadProto() {
+  const blob = new Blob([PROTO_HTML], { type: 'text/html' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'prototype_대출심사대시보드.html' });
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function showReq() {
+  const html = `<div class="action-card" style="margin-top:0">
+    <div class="action-card-header">📋 개발 요건서 (전체)</div>
+    <div class="action-card-body" style="max-height:300px">${escapeHtml(REQ_TEXT)}</div>
+  </div>
+  <div class="action-btns">
+    <button class="action-btn btn-req" onclick="copyReq()">📋 복사</button>
+  </div>`;
+  addMsg('ai', html);
+}
+
+function copyReq() {
+  navigator.clipboard.writeText(REQ_TEXT).then(() => showToast('📋 요건서가 클립보드에 복사되었습니다'));
+}
+
+function registerTask() {
+  if (step < 4) {
+    showToast('⚠️ 요건 정리를 먼저 완료해 주세요');
+    return;
+  }
+  showToast('📁 Dooray 업무에 등록되었습니다 — "대출 심사 현황 대시보드 요건정리"');
+  // 사이드바 배지 업데이트 시뮬레이션
+  const items = document.querySelectorAll('.sidebar-item');
+  items.forEach(item => {
+    if (item.textContent.includes('SRMS 요건정리')) {
+      if (!item.querySelector('.badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = '1';
+        item.appendChild(badge);
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════
+   유틸리티
+══════════════════════════════════════════ */
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function switchMode(m) {
+  mode = m;
+  document.getElementById('tab-new').classList.toggle('active', m === 'new');
+  document.getElementById('tab-mod').classList.toggle('active', m === 'mod');
+  resetDemo();
+}
+
+function resetDemo() {
+  step = 0;
+  isTyping = false;
+  document.getElementById('chat-area').innerHTML = '';
+  document.getElementById('msg-input').value = '';
+  document.getElementById('msg-input').placeholder = mode === 'new'
+    ? '개발하고 싶은 내용을 자유롭게 말씀해 주세요...'
+    : '수정하고 싶은 내용을 말씀해 주세요. 화면 캡처를 첨부하세요.';
+  document.getElementById('step-hint').textContent = '';
+  document.getElementById('send-btn').disabled = false;
+
+  const greeting = SCENARIOS[mode][0];
+  setTimeout(() => addMsg('ai', escapeHtml(greeting.text)), 300);
+}
+
+/* ══════════════════════════════════════════
+   아키텍처 다이어그램
+══════════════════════════════════════════ */
+function showArch() {
+  document.getElementById('arch-panel').classList.add('show');
+}
+function closeArch() {
+  document.getElementById('arch-panel').classList.remove('show');
+}
+
+// 모달 외부 클릭으로 닫기
+document.getElementById('proto-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// 초기화
+resetDemo();
+</script>
+</body>
+</html>
